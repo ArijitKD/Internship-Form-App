@@ -1,4 +1,42 @@
-APP_NAME = "Next24tech Registration Form"
+'''
+MIT License
+
+Copyright (c) 2024 Arijit Kumar Das <arijitkdgit.official@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+'''
+
+# TODO:
+# * Re-implement cut(), copy(), paste() and make them bug-free
+# * Add functionality to submit button
+# * Add an internship description label below company logo
+# * Add valid data verification check for resume link data on focus_out
+# * Update app icon using company logo
+
+# [OPTIONAL TODO]
+# * If possible, implement the valid data check of name, college name, other course and branch using ChatGPT API
+# * Resolve the bug: entry does not re-gain focus on an error display if the next widget is an optionmenu
+# * Add an undo-redo function to the entries, if possible
+
+
+APP_NAME = "Next24tech Internship Registration Form"
+COMPANY_NAME = "Next24tech Technology & Services"
 dependency_flag_set = 0
 
 try:
@@ -29,7 +67,16 @@ if (dependency_flag_set):
         print ("*   Re-run "+APP_NAME+".")
     raise SystemExit(1)
 
-            
+
+
+def capitalize_each_word(sentence):
+    words = sentence.split()
+    sentence = ""
+    for word in words:
+        sentence += word.capitalize()+' '
+    return sentence
+
+
 base_window = tk.Tk()
 
 # Get the screen dimesions
@@ -38,7 +85,7 @@ SCR_HEIGHT = base_window.winfo_screenheight()
 
 # Base window dimensions
 WIN_WIDTH = 480
-WIN_HEIGHT = 640
+WIN_HEIGHT = 720
 WIN_BG = '#f3f0e6'
 
 # Define ttk styles
@@ -47,6 +94,7 @@ style.configure("placeholder.TEntry", foreground="gray")
 style.configure("text.TEntry", foreground="black")
 style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG)
 style.configure("text.TMenubutton", foreground="black", background=WIN_BG)
+style.configure("chkbtn.TCheckbutton", background=WIN_BG)
 
 # Place the window at the screen center
 center_x = int((SCR_WIDTH/2) - (WIN_WIDTH/2))
@@ -77,23 +125,37 @@ base_window.configure(background=WIN_BG)
 img = ImageTk.PhotoImage(Image.open("next24tech_cover_480x120.png"))
 tk.Label(base_window, image = img, background=WIN_BG).pack(side = "top", pady=(10,50))
 
-
 # Defining callback functions for entries
-def entry_focusin_callback(event, textvariable):
+def entry_focusin_callback(event, textvariable=None):
+    global resume_link_info_shown
+    if (textvariable == None):
+        for entry_name in common_entries:
+            if (common_entries[entry_name]['entry'] == event.widget):
+                textvariable = common_entries[entry_name]['textvar']
+    if (event.widget == common_entries["resume link"]['entry']):
+        if (not resume_link_info_shown):
+            resume_link_info_shown = True
+            mbox.showinfo(title="Specify your resume link", message="Upload your resume in Google Drive or some other online service and specify the link to it here. Make sure that your resume is publicly accessible.")
     if (textvariable.get().startswith("Enter your ") or textvariable.get().startswith("Specify ")):
         event.widget.delete(0, 'end')
         event.widget.configure(style="text.TEntry")
     else:
-        if (str(event.widget).find("entry") != -1):
-            event.widget.event_generate("<Control-a>", x=0, y=0)
-            event.widget.xview_moveto(len(textvariable.get()))
+        event.widget.xview_moveto(len(textvariable.get()))
+        event.widget.icursor(len(textvariable.get()))
 
 
-def entry_focusout_callback(event, textvariable, placeholder, what_data=""):
-    entry_data = textvariable.get()
+def entry_focusout_callback(event, what_data="", placeholder="", textvariable=None):
+    if (textvariable == None):
+        for entry_name in common_entries:
+            if (common_entries[entry_name]['entry'] == event.widget):
+                textvariable = common_entries[entry_name]['textvar']
+    entry_data = textvariable.get().strip()
     invalid_data = False
     custom_invalid_msg = ""
     
+    if (placeholder == ""):
+        placeholder = "Enter your "+what_data
+        
     if (entry_data == ""):
         event.widget.configure(style="placeholder.TEntry")
         event.widget.insert(0, placeholder)
@@ -139,9 +201,15 @@ def entry_focusout_callback(event, textvariable, placeholder, what_data=""):
     
     else:
         if (entry_data != ""):
+            copy_entry_data = entry_data
+            for char in ('(', ')', '.', ',', ' '):
+                entry_data = entry_data.replace(char, '')
             if (not entry_data.isalpha()):
                 invalid_data = True
-                
+            entry_data = copy_entry_data
+
+    event.widget.xview_moveto(0)
+    event.widget.icursor(0)          
     if (invalid_data):
         if (custom_invalid_msg == ""):
             mbox.showerror(title="Invalid "+what_data, message="\""+entry_data+"\" is not a valid %s. Please enter a valid %s."%(what_data, what_data))
@@ -152,7 +220,7 @@ def entry_focusout_callback(event, textvariable, placeholder, what_data=""):
         event.widget.insert(0, placeholder)
         event.widget.icursor(0)
         event.widget.focus_set()
-
+        
 
 def circulate_thru_widgets(event, key="Tab"):
     try:
@@ -163,7 +231,7 @@ def circulate_thru_widgets(event, key="Tab"):
     next_index = current_index + (-1 if key=='Up' else 1)
     if (next_index >= len(all_widgets)):
         if (key=="Return"):
-            base_window.focus_set()
+            agree_chkbtn.focus_set()
             return
         else:
             next_index = 0    
@@ -178,76 +246,167 @@ def circulate_thru_widgets(event, key="Tab"):
         all_widgets[current_index].xview_moveto(0)
     except:
         pass
-    if (all_widgets[next_index] == course_menu):
-        all_widgets[next_index].event_generate("<Button-1>", x=0, y=0)
+    if (all_widgets[next_index] == course_menu or all_widgets[next_index] == internship_menu):
+        all_widgets[next_index].event_generate("<Button-1>")
+        all_widgets[next_index].event_generate("<ButtonRelease-1>")
         
-            
-# Add a name entry label and field
-name_var = tk.StringVar()
-name_var.set("")
-name_frame = tk.Frame(base_window, background=WIN_BG)
-name_frame.pack(fill="both", pady=(0,15))
-tk.Label(name_frame, text = 'Your name', background=WIN_BG).pack(side="left", padx=(50,0))
-name_entry = ttk.Entry(name_frame, width=40, textvariable = name_var, style="placeholder.TEntry")
-name_entry.insert(0, "Enter your name")
-name_entry.icursor(0)
-name_entry.pack(side="right", ipady=5, padx=(0,50))
-name_entry.bind('<FocusIn>', lambda event, textvariable=name_var : entry_focusin_callback(event, textvariable))
-name_entry.bind('<FocusOut>', lambda event, textvariable=name_var, placeholder="Enter your name", what_data="name" :
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-name_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+    
+common_entries = {
+    'name': None,
+    'phone number': None,
+    'email id': None,
+    'college name': None,
+    'branch': None,
+    'course year': None,
+    'resume link': None
+    }
+
+for entry in common_entries:
+    common_entries[entry] = {
+        'entry': None,
+        'textvar': None
+        }
+
+all_widgets = []
+resume_link_info_shown = False
 
 
-# Add a phone number entry label and field
-phone_var = tk.StringVar()
-phone_var.set("")
-phone_frame = tk.Frame(base_window, background=WIN_BG)
-phone_frame.pack(fill="both", pady=(0,15))
-tk.Label(phone_frame, text = 'Phone number', background=WIN_BG).pack(side="left", padx=(50,0))
-phone_entry = ttk.Entry(phone_frame, width=40, textvariable = phone_var, style="placeholder.TEntry")
-phone_entry.insert(0, "Enter your 10-digit phone number")
-phone_entry.icursor(0)
-phone_entry.pack(side="right", ipady=5, padx=(0,50))
-phone_entry.bind('<FocusIn>', lambda event, textvariable=phone_var : entry_focusin_callback(event, textvariable))
-phone_entry.bind('<FocusOut>', lambda event, textvariable=phone_var, placeholder="Enter your 10-digit phone number", what_data="phone number":
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-phone_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+# Cut, copy, paste are currently buggy
+def cut():
+    widget = base_window.focus_get()
+    base_window.clipboard_clear()
+    selection = ""
+    try:
+        selection = widget.selection_get()
+        end_selection = widget.index(tk.INSERT)
+        start_selection = end_selection - len(selection)
+        for entry_name in common_entries:
+            if (common_entries[entry_name]['entry'] == widget):
+                text = common_entries[entry_name]['textvar'].get()
+                common_entries[entry_name]['textvar'].set(text[0:start_selection]+text[end_selection::])
+        widget.selection_clear()
+        widget.icursor(start_selection)
+    except:
+        pass
+    finally:
+        base_window.clipboard_append(selection)
+
+def copy():
+    widget = base_window.focus_get()
+    base_window.clipboard_clear()
+    try:
+        selection = widget.selection_get()
+        base_window.clipboard_append(selection)
+        widget.selection_clear()
+    except:
+        pass
+    
+def paste():
+    widget = base_window.focus_get()
+    cursor_index = widget.index(tk.INSERT)
+    selection = ""
+    try:
+        data = base_window.selection_get(selection="CLIPBOARD")
+        selection = widget.selection_get()
+        end_selection = widget.index(tk.INSERT)
+        start_selection = end_selection - len(selection)
+        for entry_name in common_entries:
+            if (common_entries[entry_name]['entry'] == widget):
+                text = common_entries[entry_name]['textvar'].get()
+                common_entries[entry_name]['textvar'].set(text[0:start_selection]+text[end_selection::])
+        widget.selection_clear()
+        widget.icursor(start_selection)
+    except:
+        pass
+    
+    for entry_name in common_entries:
+        if (common_entries[entry_name]['entry'] == widget):
+            text = common_entries[entry_name]['textvar'].get()
+            common_entries[entry_name]['textvar'].set(text[0:cursor_index]+data+text[cursor_index::])
+    widget.select_range(cursor_index, len(data)+cursor_index)
+    widget.icursor(len(data)+cursor_index)
 
 
-# Add an email entry label and field
-email_var = tk.StringVar()
-email_var.set("")
-email_frame = tk.Frame(base_window, background=WIN_BG)
-email_frame.pack(fill="both", pady=(0,15))
-tk.Label(email_frame, text = 'E-mail ID', background=WIN_BG).pack(side="left", padx=(50,0))
-email_entry = ttk.Entry(email_frame, width=40, textvariable = email_var, style="placeholder.TEntry")
-email_entry.insert(0, "Enter your email id")
-email_entry.icursor(0)
-email_entry.pack(side="right", ipady=5, padx=(0,50))
-email_entry.bind('<FocusIn>', lambda event, textvariable=email_var : entry_focusin_callback(event, textvariable))
-email_entry.bind('<FocusOut>', lambda event, textvariable=email_var, placeholder="Enter your email id", what_data="email id":
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-email_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+def select_all():
+    widget = base_window.focus_get()
+    widget.select_range(0, len(widget.get()))
+    
+# Add a popup menu that appears on right-click on entry widgets
+popup_menu = tk.Menu(master=base_window, tearoff=0)
+#popup_menu.add_command(label="Undo", command=None)
+#popup_menu.add_command(label="Redo", command=None)
+#popup_menu.add_separator()
+popup_menu.add_command(label="Cut", command=cut, state=tk.DISABLED)
+popup_menu.add_command(label="Copy", command=copy, state=tk.DISABLED)
+popup_menu.add_command(label="Paste", command=paste)
+try:
+    base_window.selection_get(selection="CLIPBOARD")
+except:
+    popup_menu.entryconfig("Paste", state=tk.DISABLED)
+popup_menu.add_separator()
+popup_menu.add_command(label="Select All", command=select_all)
+
+def popup_menu_callback(event):
+    try:
+        event.widget.selection_get()
+        popup_menu.entryconfig("Cut", state=tk.ACTIVE)
+        popup_menu.entryconfig("Copy", state=tk.ACTIVE)
+    except:
+        popup_menu.entryconfig("Cut", state=tk.DISABLED)
+        popup_menu.entryconfig("Copy", state=tk.DISABLED)
+    try:
+        base_window.selection_get(selection="CLIPBOARD")
+        popup_menu.entryconfig("Paste", state=tk.ACTIVE)
+    except:
+        popup_menu.entryconfig("Paste", state=tk.DISABLED)
+    if (base_window.focus_get() == event.widget):
+        popup_menu.tk_popup(event.x_root, event.y_root, 0)
+
+    
+# Define a function for adding a common entry
+def add_common_entry(entry_name):
+    common_entries[entry_name]['textvar'] = tk.StringVar()
+    entry_frame = tk.Frame(base_window, background=WIN_BG)
+    entry_frame.pack(fill="both", pady=(0,15))
+    tk.Label(entry_frame, text = capitalize_each_word(entry_name), background=WIN_BG).pack(side="left", padx=(50,0))
+    common_entries[entry_name]['entry'] = ttk.Entry(entry_frame, width=40, textvariable = common_entries[entry_name]['textvar'], style="placeholder.TEntry")
+    common_entries[entry_name]['entry'].insert(0, "Enter your "+entry_name)
+    common_entries[entry_name]['entry'].icursor(0)
+    common_entries[entry_name]['entry'].pack(side="right", ipady=5, padx=(0,50))
+    common_entries[entry_name]['entry'].bind('<FocusIn>', entry_focusin_callback)
+    common_entries[entry_name]['entry'].bind('<FocusOut>', lambda event, what_data=entry_name :
+                 entry_focusout_callback(event, what_data=what_data))
+    common_entries[entry_name]['entry'].bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+    common_entries[entry_name]['entry'].bind('<Button-3>', popup_menu_callback)
 
 
-# Add a college name entry label and field
-college_var = tk.StringVar()
-college_var.set("")
-college_frame = tk.Frame(base_window, background=WIN_BG)
-college_frame.pack(fill="both", pady=(0,15))
-tk.Label(college_frame, text = 'College name', background=WIN_BG).pack(side="left", padx=(50,0))
-college_entry = ttk.Entry(college_frame, width=40, textvariable = college_var, style="placeholder.TEntry")
-college_entry.insert(0, "Enter your college name")
-college_entry.icursor(0)
-college_entry.pack(side="right", ipady=5, padx=(0,50))
-college_entry.bind('<FocusIn>', lambda event, textvariable=college_var : entry_focusin_callback(event, textvariable))
-college_entry.bind('<FocusOut>', lambda event, textvariable=college_var, placeholder="Enter your college name", what_data="college name" :
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-college_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+# Add the name, phone number, email id, college name entries
+iter_common_entries = iter(common_entries.keys())
+current_entry = next(iter_common_entries)
+while (current_entry != 'branch'):
+    add_common_entry(current_entry)
+    all_widgets.append(common_entries[current_entry]['entry'])
+    current_entry = next(iter_common_entries)
 
 
+def menu_btn1(event):
+    base_window.focus_set()
+    event.widget.focus_set()
+    
 # Add a course selection optionmenu
+courses = [
+    "B.E/B.Tech - 4 yrs",
+    "Integrated B.Tech+M.Tech - 5 yrs",
+    "B.Sc - 3 yrs",
+    "B.Sc (Hons) - 3 yrs",
+    "B.C.A - 3 yrs",
+    "B.B.A - 3 yrs",
+    "B.Com - 3 yrs",
+    "Other"
+    ]
 course_menu_other_entry_visible = False
+
+# Callback function for course menu
 def course_menu_callback(selected_option):
     global course_menu_other_entry_visible
     course_menu.configure(style="text.TMenubutton")
@@ -261,80 +420,97 @@ def course_menu_callback(selected_option):
         course_menu.configure(width=40)
         course_menu.pack(side="left", ipady=5, padx=(50,50))        
         max_year = int(selected_option[selected_option.index('-')+2])
-        current_course_year = course_year_var.get()
+        current_course_year = common_entries['course year']['textvar'].get()
         if (current_course_year.isdigit()):
             current_course_year = int(current_course_year)
             if (current_course_year > max_year):
-                course_year_var.set(str(max_year))
+                common_entries['course year']['textvar'].set(str(max_year))
         course_menu_other_entry_visible = False
 
-        
-courses = ["B.E/B.Tech - 4 yrs",
-           "Integrated B.Tech+M.Tech - 5 yrs",
-           "B.Sc - 3 yrs",
-           "B.Sc (Hons) - 3 yrs",
-           "B.C.A - 3 yrs",
-           "B.B.A - 3 yrs",
-           "B.Com - 3 yrs",
-           "Other"]
+# The course menu
 course_var = tk.StringVar()
 course_frame = tk.Frame(base_window, background=WIN_BG)
 course_frame.pack(fill="both", pady=(0,15))
-tk.Label(course_frame, text = 'Current course', background=WIN_BG).pack(side="left", padx=(50,0), ipady=5)
+tk.Label(course_frame, text = 'Current Course', background=WIN_BG).pack(side="left", padx=(50,0), ipady=5)
 course_menu = ttk.OptionMenu(course_frame, course_var, "Choose your course", *courses, command=course_menu_callback)
 course_menu.configure(width=40, style="placeholder.TMenubutton", padding=3)
 course_menu.pack(side="left", ipady=5, padx=(50,50))
 course_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+course_menu.bind('<Button-1>', menu_btn1)
 
+# Add an entry which will allow the user to input their course in case their current course is not listed in courses
 course_menu_other_var = tk.StringVar()
 course_menu_other_entry = ttk.Entry(course_frame, width=40, textvariable = course_menu_other_var, style="placeholder.TEntry")
 course_menu_other_entry.insert(0, "Specify your course")
 course_menu_other_entry.icursor(0)
 course_menu_other_entry.pack(side="right", ipady=5, padx=(0,50))
 course_menu_other_entry.bind('<FocusIn>', lambda event, textvariable=course_menu_other_var : entry_focusin_callback(event, textvariable))
-course_menu_other_entry.bind('<FocusOut>', lambda event, textvariable=course_menu_other_var, placeholder="Specify your course", what_data="course" :
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
+course_menu_other_entry.bind('<FocusOut>', lambda event, what_data="course", placeholder="Specify your course", textvariable=course_menu_other_var :
+                 entry_focusout_callback(event, what_data, placeholder, textvariable))
 course_menu_other_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+course_menu_other_entry.bind('<Button-3>', popup_menu_callback)
 
 
-# Add a specialization entry label and field
-specialization_var = tk.StringVar()
-specialization_var.set("")
-specialization_frame = tk.Frame(base_window, background=WIN_BG)
-specialization_frame.pack(fill="both", pady=(0,15))
-tk.Label(specialization_frame, text = 'Course specialization', background=WIN_BG).pack(side="left", padx=(50,0))
-specialization_entry = ttk.Entry(specialization_frame, width=40, textvariable = specialization_var, style="placeholder.TEntry")
-specialization_entry.insert(0, "Enter your specialization")
-specialization_entry.icursor(0)
-specialization_entry.pack(side="right", ipady=5, padx=(0,50))
-specialization_entry.bind('<FocusIn>', lambda event, textvariable=specialization_var : entry_focusin_callback(event, textvariable))
-specialization_entry.bind('<FocusOut>', lambda event, textvariable=specialization_var, placeholder="Enter your specialization", what_data="specialization" :
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-specialization_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-           
-
-# Add a course year entry label and field
-course_year_var = tk.StringVar()
-course_year_var.set("")
-course_year_frame = tk.Frame(base_window, background=WIN_BG)
-course_year_frame.pack(fill="both", pady=(0,15))
-tk.Label(course_year_frame, text = 'Course year', background=WIN_BG).pack(side="left", padx=(50,0))
-course_year_entry = ttk.Entry(course_year_frame, width=40, textvariable = course_year_var, style="placeholder.TEntry")
-course_year_entry.insert(0, "Enter your course year")
-course_year_entry.icursor(0)
-course_year_entry.pack(side="right", ipady=5, padx=(0,50))
-course_year_entry.bind('<FocusIn>', lambda event, textvariable=course_year_var : entry_focusin_callback(event, textvariable))
-course_year_entry.bind('<FocusOut>', lambda event, textvariable=course_year_var, placeholder="Enter your course year", what_data="course year":
-                 entry_focusout_callback(event, textvariable, placeholder, what_data))
-course_year_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+# Update all_widgets after course_menu and course_menu_other_entry are added
+all_widgets.extend([course_menu, course_menu_other_entry])
 
 
-all_widgets = [name_entry, phone_entry, email_entry, college_entry, course_menu, course_menu_other_entry, specialization_entry, course_year_entry]
+# Add the branch and course year entries and an entry for specifying an online link for resume
+for current_entry in list(common_entries.keys())[-3::]:
+    add_common_entry(current_entry)
+    all_widgets.append(common_entries[current_entry]['entry'])
 
-# Add a popup menu that appears on right-click on entry widgets
-for widget in all_widgets:
-    if (str(widget).find('entry') != -1):
-        pass
+
+# Add an internship position menu
+internships = [
+    "Python GUI development",
+    "GenAI/Machine Learning",
+    "Web development using Node.js/React",
+    "UI/UX design",
+    ".NET development",
+    "Java app development",
+    "Desktop development with C++",
+    "Mobile development with Java/Kotlin",
+    "Digital Marketing"
+    ]
+internships.sort()
+
+def course_menu_callback(selected_option):
+    internship_menu.configure(style="text.TMenubutton")
+    
+internship_var = tk.StringVar()
+internship_frame = tk.Frame(base_window, background=WIN_BG)
+internship_frame.pack(fill="both", pady=(0,15))
+tk.Label(internship_frame, text = 'Internship Position', background=WIN_BG).pack(side="left", padx=(50,0), ipady=5)
+internship_menu = ttk.OptionMenu(internship_frame, internship_var, "Choose your position", *internships, command=course_menu_callback)
+internship_menu.configure(width=37, style="placeholder.TMenubutton", padding=3)
+internship_menu.pack(side="right", ipady=5, padx=(0,50))
+internship_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+internship_menu.bind('<Button-1>', menu_btn1)
+all_widgets.append(internship_menu)
+
+# Add a tos and privacy policy agreement checkbutton
+def agree_chkbtn_callback():
+    if (agree_chkbtn_var.get()):
+        submit_button.configure(state=tk.ACTIVE)
+        submit_button.focus_set()
+    else:
+        submit_button.configure(state=tk.DISABLED)
+        base_window.focus_set()
+    
+agree_chkbtn_var = tk.IntVar()
+agree_chkbtn = ttk.Checkbutton(base_window, text="   I agree to share my data with %s and am\n   fully aware of the company's terms of service and privacy policy."%(COMPANY_NAME,),
+                               variable=agree_chkbtn_var, command=agree_chkbtn_callback, style="chkbtn.TCheckbutton")
+agree_chkbtn.pack(padx=(5,50), pady=15)
+
+
+# Finally, add the submit button
+def submit_button_callback(event=None):
+    print ("Submitted")
+submit_button = ttk.Button(base_window, text="Submit Form", state=tk.DISABLED, command=submit_button_callback)
+submit_button.pack(ipadx=20)
+submit_button.bind("<Return>", submit_button_callback)
+
 
 base_window.unbind_all("<Tab>")
 base_window.unbind_all("<<NextWindow>>")
