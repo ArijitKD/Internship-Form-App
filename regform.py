@@ -28,10 +28,11 @@ SOFTWARE.
 # * Add an internship description label below company logo
 # * Add valid data verification check for resume link data on focus_out
 # * Update app icon using company logo
+# * Add support for non-Windows OSes                                                                                [DONE]
 
 # [OPTIONAL TODO]
 # * If possible, implement the valid data check of name, college name, other course and branch using ChatGPT API
-# * Resolve the bug: entry does not re-gain focus on an error display if the next widget is an optionmenu
+# * Resolve the bug: entry does not re-gain focus on an error display if the next widget is an optionmenu           [DONE]
 # * Add an undo-redo function to the entries, if possible
 
 
@@ -42,7 +43,6 @@ dependency_flag_set = 0
 try:
     import tkinter as tk
     import tkinter.ttk as ttk
-    from tkinter import messagebox as mbox
 except ModuleNotFoundError:    
     print ("Warning: Tkinter was not found.")
     dependency_flag_set = 1
@@ -68,6 +68,8 @@ if (dependency_flag_set):
     raise SystemExit(1)
 
 
+from os import name as OS_NAME
+from tkinter import messagebox as mbox
 
 def capitalize_each_word(sentence):
     words = sentence.split()
@@ -79,22 +81,36 @@ def capitalize_each_word(sentence):
 
 base_window = tk.Tk()
 
+
 # Get the screen dimesions
 SCR_WIDTH = base_window.winfo_screenwidth()
 SCR_HEIGHT = base_window.winfo_screenheight()
 
 # Base window dimensions
 WIN_WIDTH = 480
-WIN_HEIGHT = 720
+WIN_HEIGHT = 750
 WIN_BG = '#f3f0e6'
 
+DEFAULT_ENTRY_WIDTH = 40 if OS_NAME == 'nt' else 30
+DEFAULT_MENU_WIDTH = 37 if OS_NAME == 'nt' else 30
+
 # Define ttk styles
-style = ttk.Style()
-style.configure("placeholder.TEntry", foreground="gray")
-style.configure("text.TEntry", foreground="black")
-style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG)
-style.configure("text.TMenubutton", foreground="black", background=WIN_BG)
-style.configure("chkbtn.TCheckbutton", background=WIN_BG)
+if (OS_NAME == 'nt'):
+    style = ttk.Style()
+    style.configure("placeholder.TEntry", foreground="gray")
+    style.configure("text.TEntry", foreground="black")
+    style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG)
+    style.configure("text.TMenubutton", foreground="black", background=WIN_BG)
+    style.configure("chkbtn.TCheckbutton", background=WIN_BG)
+    style.configure("text.TLabel")
+else:
+    style = ttk.Style()
+    style.configure("placeholder.TEntry", foreground="gray", font=('Helvetica', 5))
+    style.configure("text.TEntry", foreground="black", font=('Helvetica', 5))
+    style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG, font=('Helvetica', 10))
+    style.configure("text.TMenubutton", foreground="black", background=WIN_BG, font=('Helvetica', 10))
+    style.configure("chkbtn.TCheckbutton", background=WIN_BG, font=('Helvetica', 9))
+    style.configure("text.TLabel", font=('Helvetica', 10))
 
 # Place the window at the screen center
 center_x = int((SCR_WIDTH/2) - (WIN_WIDTH/2))
@@ -109,7 +125,7 @@ base_window.resizable(0,0)
 
 # Add a callback function for the close window event
 def on_close():
-    close_window = mbox.askyesno(title="Close form", message="Do you really want to close this form?", default="no")
+    close_window = mbox.askyesno(master=base_window, title="Close form", message="Do you really want to close this form?", default="no")
     if (close_window):
         base_window.destroy()
     return close_window
@@ -135,7 +151,7 @@ def entry_focusin_callback(event, textvariable=None):
     if (event.widget == common_entries["resume link"]['entry']):
         if (not resume_link_info_shown):
             resume_link_info_shown = True
-            mbox.showinfo(title="Specify your resume link", message="Upload your resume in Google Drive or some other online service and specify the link to it here. Make sure that your resume is publicly accessible.")
+            mbox.showinfo(master=base_window, title="Specify your resume link", message="Upload your resume in Google Drive or some other online service and specify the link to it here. Make sure that your resume is publicly accessible.")
     if (textvariable.get().startswith("Enter your ") or textvariable.get().startswith("Specify ")):
         event.widget.delete(0, 'end')
         event.widget.configure(style="text.TEntry")
@@ -181,9 +197,10 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
                 if (current_course != "Other"):
                     try:
                         max_year = int(current_course[current_course.index('-')+2])                    
-                        if (not (0 < int(entry_data) <= max_year)):
-                            invalid_data = True
-                            custom_invalid_msg = "\"%s\" is not a valid year for a %s course."%(entry_data, current_course)
+                        if (int(entry_data) > max_year):
+                            textvariable.set(str(max_year))
+                        elif (int(entry_data) < 1):
+                            textvariable.set('1')
                     except ValueError:
                         invalid_data = True
                         custom_invalid_msg = "Please choose a course first."
@@ -211,23 +228,32 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
     event.widget.xview_moveto(0)
     event.widget.icursor(0)          
     if (invalid_data):
+        for widget in base_window.winfo_children():
+            if (str(widget).find("optionmenu") != -1):
+                print (widget)
+                widget.winfo_children()[0].unpost()
         if (custom_invalid_msg == ""):
-            mbox.showerror(title="Invalid "+what_data, message="\""+entry_data+"\" is not a valid %s. Please enter a valid %s."%(what_data, what_data))
+            mbox.showerror(master=base_window, title="Invalid "+what_data, message="\""+entry_data+"\" is not a valid %s. Please enter a valid %s."%(what_data, what_data))
         else:
-            mbox.showerror(title="Invalid "+what_data, message=custom_invalid_msg)
+            mbox.showerror(master=base_window, title="Invalid "+what_data, message=custom_invalid_msg)
         event.widget.configure(style="placeholder.TEntry")
         event.widget.delete(0, 'end')
         event.widget.insert(0, placeholder)
         event.widget.icursor(0)
         event.widget.focus_set()
         
+        
 
 def circulate_thru_widgets(event, key="Tab"):
     try:
-        current_index = all_widgets.index(event.widget)
-    except:
+        current_widget = base_window.focus_get()
+    except KeyError:
+        return
+    if (current_widget in all_widgets):
+        current_index = all_widgets.index(current_widget)
+    else:
         all_widgets[0].focus_set()
-        return    
+        return
     next_index = current_index + (-1 if key=='Up' else 1)
     if (next_index >= len(all_widgets)):
         if (key=="Return"):
@@ -246,9 +272,9 @@ def circulate_thru_widgets(event, key="Tab"):
         all_widgets[current_index].xview_moveto(0)
     except:
         pass
-    if (all_widgets[next_index] == course_menu or all_widgets[next_index] == internship_menu):
-        all_widgets[next_index].event_generate("<Button-1>")
-        all_widgets[next_index].event_generate("<ButtonRelease-1>")
+    if (str(all_widgets[next_index]).find('optionmenu') != -1):
+        all_widgets[next_index].winfo_children()[0].tk_popup(all_widgets[next_index].winfo_rootx(), all_widgets[next_index].winfo_rooty()+all_widgets[next_index].winfo_height(), 0)
+        all_widgets[next_index].winfo_children()[0].focus_set()
         
     
 common_entries = {
@@ -368,8 +394,8 @@ def add_common_entry(entry_name):
     common_entries[entry_name]['textvar'] = tk.StringVar()
     entry_frame = tk.Frame(base_window, background=WIN_BG)
     entry_frame.pack(fill="both", pady=(0,15))
-    tk.Label(entry_frame, text = capitalize_each_word(entry_name), background=WIN_BG).pack(side="left", padx=(50,0))
-    common_entries[entry_name]['entry'] = ttk.Entry(entry_frame, width=40, textvariable = common_entries[entry_name]['textvar'], style="placeholder.TEntry")
+    ttk.Label(entry_frame, text = capitalize_each_word(entry_name), background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0))
+    common_entries[entry_name]['entry'] = ttk.Entry(entry_frame, width=DEFAULT_ENTRY_WIDTH, textvariable = common_entries[entry_name]['textvar'], style="placeholder.TEntry")
     common_entries[entry_name]['entry'].insert(0, "Enter your "+entry_name)
     common_entries[entry_name]['entry'].icursor(0)
     common_entries[entry_name]['entry'].pack(side="right", ipady=5, padx=(0,50))
@@ -410,15 +436,21 @@ course_menu_other_entry_visible = False
 def course_menu_callback(selected_option):
     global course_menu_other_entry_visible
     course_menu.configure(style="text.TMenubutton")
+    course_menu.configure(width=10)
     if (selected_option == "Other"):
-        course_menu.configure(width=10)
-        course_menu.pack(side="left", padx=(50,0))
-        course_menu_other_entry.pack(side="left", ipady=5, padx=(5,50))
+        if (OS_NAME == 'nt'):
+            course_menu.pack(side="left", padx=(50,0))
+            course_menu_other_entry.pack(side="left", ipady=5, padx=(5,50))
+        else:
+            course_menu.pack_forget()
+            course_menu_other_entry.configure(width=DEFAULT_ENTRY_WIDTH-10)
+            course_menu_other_entry.pack(side="right", ipady=5, padx=(5,50))
+            course_menu.pack(side="right", ipady=5, padx=(45,0))
         course_menu_other_entry_visible = True
     else:
         course_menu_other_entry.pack_forget()
-        course_menu.configure(width=40)
-        course_menu.pack(side="left", ipady=5, padx=(50,50))        
+        course_menu.configure(width=DEFAULT_MENU_WIDTH)
+        course_menu.pack(side="right", ipady=5, padx=(0,50))        
         max_year = int(selected_option[selected_option.index('-')+2])
         current_course_year = common_entries['course year']['textvar'].get()
         if (current_course_year.isdigit()):
@@ -431,19 +463,18 @@ def course_menu_callback(selected_option):
 course_var = tk.StringVar()
 course_frame = tk.Frame(base_window, background=WIN_BG)
 course_frame.pack(fill="both", pady=(0,15))
-tk.Label(course_frame, text = 'Current Course', background=WIN_BG).pack(side="left", padx=(50,0), ipady=5)
+ttk.Label(course_frame, text = 'Current Course', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
 course_menu = ttk.OptionMenu(course_frame, course_var, "Choose your course", *courses, command=course_menu_callback)
-course_menu.configure(width=40, style="placeholder.TMenubutton", padding=3)
-course_menu.pack(side="left", ipady=5, padx=(50,50))
+course_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
+course_menu.pack(side="right", ipady=5, padx=(0,50))
 course_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
 course_menu.bind('<Button-1>', menu_btn1)
 
 # Add an entry which will allow the user to input their course in case their current course is not listed in courses
 course_menu_other_var = tk.StringVar()
-course_menu_other_entry = ttk.Entry(course_frame, width=40, textvariable = course_menu_other_var, style="placeholder.TEntry")
+course_menu_other_entry = ttk.Entry(course_frame, width=DEFAULT_ENTRY_WIDTH, textvariable = course_menu_other_var, style="placeholder.TEntry")
 course_menu_other_entry.insert(0, "Specify your course")
 course_menu_other_entry.icursor(0)
-course_menu_other_entry.pack(side="right", ipady=5, padx=(0,50))
 course_menu_other_entry.bind('<FocusIn>', lambda event, textvariable=course_menu_other_var : entry_focusin_callback(event, textvariable))
 course_menu_other_entry.bind('<FocusOut>', lambda event, what_data="course", placeholder="Specify your course", textvariable=course_menu_other_var :
                  entry_focusout_callback(event, what_data, placeholder, textvariable))
@@ -475,19 +506,44 @@ internships = [
     ]
 internships.sort()
 
-def course_menu_callback(selected_option):
+def internship_menu_callback(selected_option):
     internship_menu.configure(style="text.TMenubutton")
     
 internship_var = tk.StringVar()
 internship_frame = tk.Frame(base_window, background=WIN_BG)
 internship_frame.pack(fill="both", pady=(0,15))
-tk.Label(internship_frame, text = 'Internship Position', background=WIN_BG).pack(side="left", padx=(50,0), ipady=5)
-internship_menu = ttk.OptionMenu(internship_frame, internship_var, "Choose your position", *internships, command=course_menu_callback)
-internship_menu.configure(width=37, style="placeholder.TMenubutton", padding=3)
+ttk.Label(internship_frame, text = 'Internship Position', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
+internship_menu = ttk.OptionMenu(internship_frame, internship_var, "Choose internship position", *internships, command=internship_menu_callback)
+internship_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 internship_menu.pack(side="right", ipady=5, padx=(0,50))
 internship_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
 internship_menu.bind('<Button-1>', menu_btn1)
 all_widgets.append(internship_menu)
+
+
+# Add an internship duration menu
+durations = [
+    "4 weeks",
+    "45 days",
+    "2 months",
+    "3 months",
+    "6 months"
+    ]
+
+def duration_menu_callback(selected_option):
+    duration_menu.configure(style="text.TMenubutton")
+    
+duration_var = tk.StringVar()
+duration_frame = tk.Frame(base_window, background=WIN_BG)
+duration_frame.pack(fill="both", pady=(0,15))
+ttk.Label(duration_frame, text = 'Internship Duration', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
+duration_menu = ttk.OptionMenu(duration_frame, duration_var, "Choose internship duration", *durations, command=duration_menu_callback)
+duration_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
+duration_menu.pack(side="right", ipady=5, padx=(0,50))
+duration_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
+duration_menu.bind('<Button-1>', menu_btn1)
+all_widgets.append(duration_menu)
+
 
 # Add a tos and privacy policy agreement checkbutton
 def agree_chkbtn_callback():
@@ -501,7 +557,7 @@ def agree_chkbtn_callback():
 agree_chkbtn_var = tk.IntVar()
 agree_chkbtn = ttk.Checkbutton(base_window, text="   I agree to share my data with %s and am\n   fully aware of the company's terms of service and privacy policy."%(COMPANY_NAME,),
                                variable=agree_chkbtn_var, command=agree_chkbtn_callback, style="chkbtn.TCheckbutton")
-agree_chkbtn.pack(padx=(5,50), pady=15)
+agree_chkbtn.pack(padx=(5,50), pady=10)
 
 
 # Finally, add the submit button
@@ -518,5 +574,12 @@ base_window.unbind_all("<<PrevWindow>>")
 base_window.bind_all("<Tab>", circulate_thru_widgets)
 base_window.bind_all("<Down>", circulate_thru_widgets)
 base_window.bind_all("<Up>", lambda event, key="Up" : circulate_thru_widgets(event, key))
-base_window.bind_all("<Button-1>", lambda event: event.widget.focus_set())
+
+def bind_all_button1_callback(event):
+    try:
+        event.widget.focus_set()
+    except AttributeError:  # this error is sometimes raised in non-Windows systems, and that's why this function's
+        pass                # defined otherwise the callback could be a one-liner implemented using lambda function
+
+base_window.bind_all("<Button-1>", bind_all_button1_callback)
 base_window.mainloop()
