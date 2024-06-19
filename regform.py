@@ -29,6 +29,7 @@ SOFTWARE.
 # * Add valid data verification check for resume link data on focus_out
 # * Update app icon using company logo
 # * Add support for non-Windows OSes                                                                                [DONE]
+# * Add support for low-resolution display                                                                          [Partially done, need to add auto-scrolling on widget focus]
 
 # [OPTIONAL TODO]
 # * If possible, implement the valid data check of name, college name, other course and branch using ChatGPT API
@@ -87,8 +88,10 @@ SCR_WIDTH = base_window.winfo_screenwidth()
 SCR_HEIGHT = base_window.winfo_screenheight()
 
 # Base window dimensions
+EXPECTED_MIN_SCR_HEIGHT = 900
+EXPECTED_WINDOW_HEIGHT = 760
 WIN_WIDTH = 480
-WIN_HEIGHT = 750
+WIN_HEIGHT = EXPECTED_WINDOW_HEIGHT if SCR_HEIGHT > EXPECTED_MIN_SCR_HEIGHT else SCR_HEIGHT-150
 WIN_BG = '#f3f0e6'
 
 DEFAULT_ENTRY_WIDTH = 40 if OS_NAME == 'nt' else 30
@@ -102,7 +105,7 @@ if (OS_NAME == 'nt'):
     style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG)
     style.configure("text.TMenubutton", foreground="black", background=WIN_BG)
     style.configure("chkbtn.TCheckbutton", background=WIN_BG)
-    style.configure("text.TLabel")
+    style.configure("text.TLabel", background=WIN_BG)
 else:
     style = ttk.Style()
     style.configure("placeholder.TEntry", foreground="gray", font=('Helvetica', 5))
@@ -110,7 +113,7 @@ else:
     style.configure("placeholder.TMenubutton", foreground="gray", background=WIN_BG, font=('Helvetica', 10))
     style.configure("text.TMenubutton", foreground="black", background=WIN_BG, font=('Helvetica', 10))
     style.configure("chkbtn.TCheckbutton", background=WIN_BG, font=('Helvetica', 9))
-    style.configure("text.TLabel", font=('Helvetica', 10))
+    style.configure("text.TLabel", font=('Helvetica', 10), background=WIN_BG)
 
 # Place the window at the screen center
 center_x = int((SCR_WIDTH/2) - (WIN_WIDTH/2))
@@ -139,11 +142,67 @@ base_window.configure(background=WIN_BG)
 
 # Add company logo at the top
 img = ImageTk.PhotoImage(Image.open("next24tech_cover_480x120.png"))
-tk.Label(base_window, image = img, background=WIN_BG).pack(side = "top", pady=(10,50))
+tk.Label(base_window, image = img, background=WIN_BG).pack(side = "top", pady=(10,20))
 
+
+# Add internship description label
+internship_description = "You will receive your internship offer letter within 7 days, if selected."
+ttk.Label(base_window, text=internship_description, style="text.TLabel").pack(pady=(0,20))
+
+
+if (WIN_HEIGHT < EXPECTED_WINDOW_HEIGHT):
+    # Create a scrollable frame
+    scroll_frame = tk.Frame(base_window, background=WIN_BG)
+    scroll_frame.pack(fill=tk.X)
+
+    # Configure scrollbar
+    scrollbar = ttk.Scrollbar(scroll_frame, orient=tk.VERTICAL)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # Configure canvas
+    canvas = tk.Canvas(scroll_frame, yscrollcommand=scrollbar.set, highlightthickness=0, background=WIN_BG, height=WIN_HEIGHT-300,)
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    scrollbar.config(command=canvas.yview)
+
+    # Create a frame inside the canvas to hold the widgets
+    fields_area = tk.Frame(canvas, background=WIN_BG)
+    canvas.create_window((0, 0), window=fields_area, anchor=tk.NW)
+
+    # Function to update the scroll region
+    def on_frame_configure(event):
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
+    fields_area.bind("<Configure>", on_frame_configure)
+
+    def on_mousewheel(event):
+        canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    
+    canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+else:
+    fields_area = base_window
+
+        
 # Defining callback functions for entries
 def entry_focusin_callback(event, textvariable=None):
     global resume_link_info_shown
+
+    if (WIN_HEIGHT < EXPECTED_WINDOW_HEIGHT):
+        '''
+        # Calculate the current scroll position and visible height of canvas
+        #canvas.update_idletasks()
+        canvas_height = canvas.winfo_height()
+        frame_y = abs(fields_area.winfo_y()+canvas_height)
+        print (frame_y, canvas_height)
+        # Determine if the next entry is fully visible
+        if  (frame_y < canvas_height):
+            canvas.yview_scroll(2, "units")
+        elif (frame_y > canvas.winfo_y()):
+            canvas.yview_scroll(-2, "units")
+        '''
+        print ("scrollable")
+                
     if (textvariable == None):
         for entry_name in common_entries:
             if (common_entries[entry_name]['entry'] == event.widget):
@@ -228,10 +287,6 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
     event.widget.xview_moveto(0)
     event.widget.icursor(0)          
     if (invalid_data):
-        for widget in base_window.winfo_children():
-            if (str(widget).find("optionmenu") != -1):
-                print (widget)
-                widget.winfo_children()[0].unpost()
         if (custom_invalid_msg == ""):
             mbox.showerror(master=base_window, title="Invalid "+what_data, message="\""+entry_data+"\" is not a valid %s. Please enter a valid %s."%(what_data, what_data))
         else:
@@ -246,7 +301,7 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
 
 def circulate_thru_widgets(event, key="Tab"):
     try:
-        current_widget = base_window.focus_get()
+        current_widget = fields_area.focus_get()
     except KeyError:
         return
     if (current_widget in all_widgets):
@@ -273,7 +328,7 @@ def circulate_thru_widgets(event, key="Tab"):
     except:
         pass
     if (str(all_widgets[next_index]).find('optionmenu') != -1):
-        all_widgets[next_index].winfo_children()[0].tk_popup(all_widgets[next_index].winfo_rootx(), all_widgets[next_index].winfo_rooty()+all_widgets[next_index].winfo_height(), 0)
+        all_widgets[next_index].winfo_children()[0].post(all_widgets[next_index].winfo_rootx(), all_widgets[next_index].winfo_rooty()+all_widgets[next_index].winfo_height())
         all_widgets[next_index].winfo_children()[0].focus_set()
         
     
@@ -299,7 +354,7 @@ resume_link_info_shown = False
 
 # Cut, copy, paste are currently buggy
 def cut():
-    widget = base_window.focus_get()
+    widget = fields_area.focus_get()
     base_window.clipboard_clear()
     selection = ""
     try:
@@ -318,7 +373,7 @@ def cut():
         base_window.clipboard_append(selection)
 
 def copy():
-    widget = base_window.focus_get()
+    widget = fields_area.focus_get()
     base_window.clipboard_clear()
     try:
         selection = widget.selection_get()
@@ -328,7 +383,7 @@ def copy():
         pass
     
 def paste():
-    widget = base_window.focus_get()
+    widget = fields_area.focus_get()
     cursor_index = widget.index(tk.INSERT)
     selection = ""
     try:
@@ -354,11 +409,11 @@ def paste():
 
 
 def select_all():
-    widget = base_window.focus_get()
+    widget = fields_area.focus_get()
     widget.select_range(0, len(widget.get()))
     
 # Add a popup menu that appears on right-click on entry widgets
-popup_menu = tk.Menu(master=base_window, tearoff=0)
+popup_menu = tk.Menu(master=fields_area, tearoff=0)
 #popup_menu.add_command(label="Undo", command=None)
 #popup_menu.add_command(label="Redo", command=None)
 #popup_menu.add_separator()
@@ -385,14 +440,14 @@ def popup_menu_callback(event):
         popup_menu.entryconfig("Paste", state=tk.ACTIVE)
     except:
         popup_menu.entryconfig("Paste", state=tk.DISABLED)
-    if (base_window.focus_get() == event.widget):
+    if (fields_area.focus_get() == event.widget):
         popup_menu.tk_popup(event.x_root, event.y_root, 0)
 
     
 # Define a function for adding a common entry
 def add_common_entry(entry_name):
     common_entries[entry_name]['textvar'] = tk.StringVar()
-    entry_frame = tk.Frame(base_window, background=WIN_BG)
+    entry_frame = tk.Frame(fields_area, background=WIN_BG)
     entry_frame.pack(fill="both", pady=(0,15))
     ttk.Label(entry_frame, text = capitalize_each_word(entry_name), background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0))
     common_entries[entry_name]['entry'] = ttk.Entry(entry_frame, width=DEFAULT_ENTRY_WIDTH, textvariable = common_entries[entry_name]['textvar'], style="placeholder.TEntry")
@@ -414,10 +469,6 @@ while (current_entry != 'branch'):
     all_widgets.append(common_entries[current_entry]['entry'])
     current_entry = next(iter_common_entries)
 
-
-def menu_btn1(event):
-    base_window.focus_set()
-    event.widget.focus_set()
     
 # Add a course selection optionmenu
 courses = [
@@ -432,6 +483,12 @@ courses = [
     ]
 course_menu_other_entry_visible = False
 
+
+def menu_scroll_callback(event):
+    if (WIN_HEIGHT < EXPECTED_WINDOW_HEIGHT):
+        print ("scrollable")
+
+        
 # Callback function for course menu
 def course_menu_callback(selected_option):
     global course_menu_other_entry_visible
@@ -439,8 +496,10 @@ def course_menu_callback(selected_option):
     course_menu.configure(width=10)
     if (selected_option == "Other"):
         if (OS_NAME == 'nt'):
-            course_menu.pack(side="left", padx=(50,0))
-            course_menu_other_entry.pack(side="left", ipady=5, padx=(5,50))
+            course_menu.pack_forget()
+            course_menu_other_entry.configure(width=DEFAULT_ENTRY_WIDTH-15)
+            course_menu_other_entry.pack(side="right", ipady=5, padx=(6,50))
+            course_menu.pack(side="right", ipady=5, padx=(40,0))
         else:
             course_menu.pack_forget()
             course_menu_other_entry.configure(width=DEFAULT_ENTRY_WIDTH-10)
@@ -461,14 +520,14 @@ def course_menu_callback(selected_option):
 
 # The course menu
 course_var = tk.StringVar()
-course_frame = tk.Frame(base_window, background=WIN_BG)
+course_frame = tk.Frame(fields_area, background=WIN_BG)
 course_frame.pack(fill="both", pady=(0,15))
 ttk.Label(course_frame, text = 'Current Course', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
 course_menu = ttk.OptionMenu(course_frame, course_var, "Choose your course", *courses, command=course_menu_callback)
 course_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 course_menu.pack(side="right", ipady=5, padx=(0,50))
 course_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-course_menu.bind('<Button-1>', menu_btn1)
+course_menu.bind('<FocusIn>', menu_scroll_callback)
 
 # Add an entry which will allow the user to input their course in case their current course is not listed in courses
 course_menu_other_var = tk.StringVar()
@@ -510,14 +569,14 @@ def internship_menu_callback(selected_option):
     internship_menu.configure(style="text.TMenubutton")
     
 internship_var = tk.StringVar()
-internship_frame = tk.Frame(base_window, background=WIN_BG)
+internship_frame = tk.Frame(fields_area, background=WIN_BG)
 internship_frame.pack(fill="both", pady=(0,15))
 ttk.Label(internship_frame, text = 'Internship Position', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
 internship_menu = ttk.OptionMenu(internship_frame, internship_var, "Choose internship position", *internships, command=internship_menu_callback)
 internship_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 internship_menu.pack(side="right", ipady=5, padx=(0,50))
 internship_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-internship_menu.bind('<Button-1>', menu_btn1)
+internship_menu.bind('<FocusIn>', menu_scroll_callback)
 all_widgets.append(internship_menu)
 
 
@@ -534,14 +593,14 @@ def duration_menu_callback(selected_option):
     duration_menu.configure(style="text.TMenubutton")
     
 duration_var = tk.StringVar()
-duration_frame = tk.Frame(base_window, background=WIN_BG)
+duration_frame = tk.Frame(fields_area, background=WIN_BG)
 duration_frame.pack(fill="both", pady=(0,15))
 ttk.Label(duration_frame, text = 'Internship Duration', background=WIN_BG, style="text.TLabel").pack(side="left", padx=(50,0), ipady=5)
 duration_menu = ttk.OptionMenu(duration_frame, duration_var, "Choose internship duration", *durations, command=duration_menu_callback)
 duration_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 duration_menu.pack(side="right", ipady=5, padx=(0,50))
 duration_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-duration_menu.bind('<Button-1>', menu_btn1)
+duration_menu.bind('<FocusIn>', menu_scroll_callback)
 all_widgets.append(duration_menu)
 
 
@@ -575,11 +634,11 @@ base_window.bind_all("<Tab>", circulate_thru_widgets)
 base_window.bind_all("<Down>", circulate_thru_widgets)
 base_window.bind_all("<Up>", lambda event, key="Up" : circulate_thru_widgets(event, key))
 
-def bind_all_button1_callback(event):
+def bind_all_buttonrelease1_callback(event):
     try:
         event.widget.focus_set()
     except AttributeError:  # this error is sometimes raised in non-Windows systems, and that's why this function's
         pass                # defined otherwise the callback could be a one-liner implemented using lambda function
 
-base_window.bind_all("<Button-1>", bind_all_button1_callback)
+base_window.bind_all("<ButtonRelease-1>", bind_all_buttonrelease1_callback)
 base_window.mainloop()
