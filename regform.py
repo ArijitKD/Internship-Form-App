@@ -70,7 +70,8 @@ if (dependency_flag_set):
 
 
 from os import name as OS_NAME
-from tkinter import messagebox as mbox
+import win32messagebox as mbox
+#import tkinter.messagebox as mbox
 
 def capitalize_each_word(sentence):
     words = sentence.split()
@@ -128,7 +129,7 @@ base_window.resizable(0,0)
 
 # Add a callback function for the close window event
 def on_close():
-    close_window = mbox.askyesno(master=base_window, title="Close form", message="Do you really want to close this form?", default="no")
+    close_window = mbox.askyesno(title="Close form", message="Do you really want to close this form?", default="no")
     if (close_window):
         base_window.destroy()
     return close_window
@@ -298,8 +299,18 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
         event.widget.focus_set()
         
         
+def close_menu_callback(event):
+    global menu_visible
+    try:
+        event.widget.unpost()
+        event.widget.nametowidget(event.widget.winfo_parent()).focus_set()
+    except:
+        pass
+    menu_visible = False
+
 
 def circulate_thru_widgets(event, key="Tab"):
+    global menu_visible
     try:
         current_widget = fields_area.focus_get()
     except KeyError:
@@ -307,7 +318,12 @@ def circulate_thru_widgets(event, key="Tab"):
     if (current_widget in all_widgets):
         current_index = all_widgets.index(current_widget)
     else:
-        all_widgets[0].focus_set()
+        widget = current_widget.nametowidget(current_widget.winfo_parent())
+        if (widget in all_widgets and menu_visible):
+            widget.unbind_all("<Return>")
+            widget.bind_all("<Return>", close_menu_callback)
+        else:
+            all_widgets[0].focus_set()
         return
     next_index = current_index + (-1 if key=='Up' else 1)
     if (next_index >= len(all_widgets)):
@@ -330,6 +346,7 @@ def circulate_thru_widgets(event, key="Tab"):
     if (str(all_widgets[next_index]).find('optionmenu') != -1):
         all_widgets[next_index].winfo_children()[0].post(all_widgets[next_index].winfo_rootx(), all_widgets[next_index].winfo_rooty()+all_widgets[next_index].winfo_height())
         all_widgets[next_index].winfo_children()[0].focus_set()
+        menu_visible = True
         
     
 common_entries = {
@@ -350,6 +367,7 @@ for entry in common_entries:
 
 all_widgets = []
 resume_link_info_shown = False
+menu_visible = False
 
 
 # Cut, copy, paste are currently buggy
