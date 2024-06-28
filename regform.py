@@ -44,23 +44,20 @@ dependency_flag_set = 0
 try:
     import tkinter as tk
     import tkinter.ttk as ttk
-except ModuleNotFoundError:    
-    print ("Warning: Tkinter was not found.")
+except ImportError as e:
+    print ("Warning:", e, end="\n\n")
     dependency_flag_set = 1
 try:
     from PIL import ImageTk, Image
-except ModuleNotFoundError:
-    print ("Warning: PIL was not found.")
-    dependency_flag_set = 1
-except ImportError:
-    print ("Warning: PIL ImageTk was not found.")
+except ImportError as e:
+    print ("Warning:", e, end="\n\n")
     dependency_flag_set = 1
 
 if (dependency_flag_set):
     print ("One or more dependencies are not installed. To avoid unintended side-effects, dependencies won\'t be auto-installed. The following the steps may be useful for resolving the issues:")
     from os import name
     if (name=="nt"):
-        print ("*   For installing PIL, make sure pip3 is on the PATH then run the command \"pip3 install pillow\" (no quotes).")
+        print ("*   For installing PIL, make sure pip3 is on the PATH then run the command \"pip3 install pillow\" (no quotes) as admininistrator.")
         print ("*   For installing Tkinter, reinstall Python with Tcl/Tk support.")
         print ("*   Re-run "+APP_NAME+".")
     else:
@@ -80,9 +77,16 @@ def capitalize_each_word(sentence):
         sentence += word.capitalize()+' '
     return sentence
 
+# Flag variables
+resume_link_info_shown = False
+menu_visible = False
+course_menu_other_entry_visible = False
 
+# Variable to keep track of all the entries and the menus
+all_widgets = []
+
+# Initialize window
 base_window = tk.Tk()
-
 
 # Get the screen dimesions
 SCR_WIDTH = base_window.winfo_screenwidth()
@@ -92,7 +96,8 @@ SCR_HEIGHT = base_window.winfo_screenheight()
 EXPECTED_MIN_SCR_HEIGHT = 900
 EXPECTED_WINDOW_HEIGHT = 760
 WIN_WIDTH = 480
-WIN_HEIGHT = EXPECTED_WINDOW_HEIGHT if SCR_HEIGHT > EXPECTED_MIN_SCR_HEIGHT else SCR_HEIGHT-150
+WIN_HEIGHT = EXPECTED_WINDOW_HEIGHT if SCR_HEIGHT > EXPECTED_MIN_SCR_HEIGHT else SCR_HEIGHT-180
+
 WIN_BG = '#f3f0e6'
 
 DEFAULT_ENTRY_WIDTH = 40 if OS_NAME == 'nt' else 30
@@ -120,7 +125,7 @@ else:
 center_x = int((SCR_WIDTH/2) - (WIN_WIDTH/2))
 center_y = int((SCR_HEIGHT/2) - (WIN_HEIGHT/2))
 base_window.geometry(str(WIN_WIDTH)+"x"+str(WIN_HEIGHT)+"+"+str(center_x)+"+"+str(center_y))
-
+    
 # Set the base window title (app name)
 base_window.title(APP_NAME)
 
@@ -132,7 +137,7 @@ def on_close():
     close_window = mbox.askyesno(title="Close form", message="Do you really want to close this form?", default="no")
     if (close_window):
         base_window.destroy()
-    return close_window
+    return int (not close_window)
 
 # Add a close window event function        
 base_window.protocol("WM_DELETE_WINDOW", on_close)
@@ -211,8 +216,9 @@ def entry_focusin_callback(event, textvariable=None):
     if (event.widget == common_entries["resume link"]['entry']):
         if (not resume_link_info_shown):
             resume_link_info_shown = True
-            mbox.showinfo(master=base_window, title="Specify your resume link", message="Upload your resume in Google Drive or some other online service and specify the link to it here. Make sure that your resume is publicly accessible.")
-    if (textvariable.get().startswith("Enter your ") or textvariable.get().startswith("Specify ")):
+            mbox.showinfo(master=base_window, title="Specify your resume link",
+                            message="Upload your resume in Google Drive or some other online service and specify the link to it here. Make sure that your resume is publicly accessible.")
+    if (event.widget.cget("style") == "placeholder.TEntry"):
         event.widget.delete(0, 'end')
         event.widget.configure(style="text.TEntry")
     else:
@@ -221,6 +227,7 @@ def entry_focusin_callback(event, textvariable=None):
 
 
 def entry_focusout_callback(event, what_data="", placeholder="", textvariable=None):
+
     if (textvariable == None):
         for entry_name in common_entries:
             if (common_entries[entry_name]['entry'] == event.widget):
@@ -235,7 +242,6 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
     if (entry_data == ""):
         event.widget.configure(style="placeholder.TEntry")
         event.widget.insert(0, placeholder)
-        event.widget.icursor(0)
 
     if (what_data == "phone number"):
         if (entry_data != ""):
@@ -286,24 +292,25 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
             entry_data = copy_entry_data
 
     event.widget.xview_moveto(0)
-    event.widget.icursor(0)          
+
     if (invalid_data):
+        base_window.update()
         if (custom_invalid_msg == ""):
             mbox.showerror(master=base_window, title="Invalid "+what_data, message="\""+entry_data+"\" is not a valid %s. Please enter a valid %s."%(what_data, what_data))
         else:
             mbox.showerror(master=base_window, title="Invalid "+what_data, message=custom_invalid_msg)
         event.widget.configure(style="placeholder.TEntry")
         event.widget.delete(0, 'end')
-        event.widget.insert(0, placeholder)
-        event.widget.icursor(0)
         event.widget.focus_set()
+        popup_menu.unpost()
         
         
-def close_menu_callback(event):
-    global menu_visible
+def close_menuoptions_callback(event):
+    global menu_visible, course_menu_other_entry_visible
     try:
         event.widget.unpost()
-        event.widget.nametowidget(event.widget.winfo_parent()).focus_set()
+        all_widgets[all_widgets.index(event.widget.nametowidget(event.widget.winfo_parent()))].focus_set()
+        event.widget.unbind_all("<Return>")
     except:
         pass
     menu_visible = False
@@ -315,16 +322,18 @@ def circulate_thru_widgets(event, key="Tab"):
         current_widget = fields_area.focus_get()
     except KeyError:
         return
+
     if (current_widget in all_widgets):
         current_index = all_widgets.index(current_widget)
     else:
         widget = current_widget.nametowidget(current_widget.winfo_parent())
         if (widget in all_widgets and menu_visible):
             widget.unbind_all("<Return>")
-            widget.bind_all("<Return>", close_menu_callback)
+            widget.bind_all("<Return>", close_menuoptions_callback)
         else:
             all_widgets[0].focus_set()
         return
+
     next_index = current_index + (-1 if key=='Up' else 1)
     if (next_index >= len(all_widgets)):
         if (key=="Return"):
@@ -343,6 +352,7 @@ def circulate_thru_widgets(event, key="Tab"):
         all_widgets[current_index].xview_moveto(0)
     except:
         pass
+
     if (str(all_widgets[next_index]).find('optionmenu') != -1):
         all_widgets[next_index].winfo_children()[0].post(all_widgets[next_index].winfo_rootx(), all_widgets[next_index].winfo_rooty()+all_widgets[next_index].winfo_height())
         all_widgets[next_index].winfo_children()[0].focus_set()
@@ -365,12 +375,18 @@ for entry in common_entries:
         'textvar': None
         }
 
-all_widgets = []
-resume_link_info_shown = False
-menu_visible = False
-
 
 # Cut, copy, paste are currently buggy
+def cut():
+    widget = fields_area.focus_get()
+    widget.focus_set()
+    base_window.clipboard_clear()
+    selection = widget.selection_get()
+    widget.event_generate("<Control-x>")
+    base_window.clipboard_append(selection)
+
+
+'''
 def cut():
     widget = fields_area.focus_get()
     base_window.clipboard_clear()
@@ -389,6 +405,7 @@ def cut():
         pass
     finally:
         base_window.clipboard_append(selection)
+'''
 
 def copy():
     widget = fields_area.focus_get()
@@ -432,9 +449,6 @@ def select_all():
     
 # Add a popup menu that appears on right-click on entry widgets
 popup_menu = tk.Menu(master=fields_area, tearoff=0)
-#popup_menu.add_command(label="Undo", command=None)
-#popup_menu.add_command(label="Redo", command=None)
-#popup_menu.add_separator()
 popup_menu.add_command(label="Cut", command=cut, state=tk.DISABLED)
 popup_menu.add_command(label="Copy", command=copy, state=tk.DISABLED)
 popup_menu.add_command(label="Paste", command=paste)
@@ -445,7 +459,11 @@ except:
 popup_menu.add_separator()
 popup_menu.add_command(label="Select All", command=select_all)
 
-def popup_menu_callback(event):
+
+def rightclick_optionsmenu_callback(event, cursor_position):
+    print (cursor_position)
+    print ("popup_menu_visible")
+    base_window.after(100, lambda: event.widget.xview_moveto(cursor_position))
     try:
         event.widget.selection_get()
         popup_menu.entryconfig("Cut", state=tk.ACTIVE)
@@ -460,8 +478,10 @@ def popup_menu_callback(event):
         popup_menu.entryconfig("Paste", state=tk.DISABLED)
     if (fields_area.focus_get() == event.widget):
         popup_menu.tk_popup(event.x_root, event.y_root, 0)
-
     
+
+# apple banana cherry date eggplant fig grapefruit honeydew kiwi lemon mango orange pear quince raspberry strawberry tomato
+
 # Define a function for adding a common entry
 def add_common_entry(entry_name):
     common_entries[entry_name]['textvar'] = tk.StringVar()
@@ -471,12 +491,16 @@ def add_common_entry(entry_name):
     common_entries[entry_name]['entry'] = ttk.Entry(entry_frame, width=DEFAULT_ENTRY_WIDTH, textvariable = common_entries[entry_name]['textvar'], style="placeholder.TEntry")
     common_entries[entry_name]['entry'].insert(0, "Enter your "+entry_name)
     common_entries[entry_name]['entry'].icursor(0)
-    common_entries[entry_name]['entry'].pack(side="right", ipady=5, padx=(0,50))
+    if (WIN_HEIGHT < EXPECTED_WINDOW_HEIGHT):
+        common_entries[entry_name]['entry'].pack(side="right", ipady=5, padx=(50,50))
+    else:
+        common_entries[entry_name]['entry'].pack(side="right", ipady=5, padx=(0,50))
     common_entries[entry_name]['entry'].bind('<FocusIn>', entry_focusin_callback)
     common_entries[entry_name]['entry'].bind('<FocusOut>', lambda event, what_data=entry_name :
                  entry_focusout_callback(event, what_data=what_data))
     common_entries[entry_name]['entry'].bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-    common_entries[entry_name]['entry'].bind('<Button-3>', popup_menu_callback)
+    common_entries[entry_name]['entry'].bind('<Button-3>', lambda event: rightclick_optionsmenu_callback(event, cursor_position=common_entries[entry_name]['entry'].index(tk.INSERT)))
+    #common_entries[entry_name]['entry'].bind('<Button-1>', rightclick_optionsmenu_callback)
 
 
 # Add the name, phone number, email id, college name entries
@@ -499,12 +523,6 @@ courses = [
     "B.Com - 3 yrs",
     "Other"
     ]
-course_menu_other_entry_visible = False
-
-
-def menu_scroll_callback(event):
-    if (WIN_HEIGHT < EXPECTED_WINDOW_HEIGHT):
-        print ("scrollable")
 
         
 # Callback function for course menu
@@ -545,7 +563,7 @@ course_menu = ttk.OptionMenu(course_frame, course_var, "Choose your course", *co
 course_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 course_menu.pack(side="right", ipady=5, padx=(0,50))
 course_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-course_menu.bind('<FocusIn>', menu_scroll_callback)
+course_menu.bind("<Button-1>", lambda event: event.widget.focus_set())
 
 # Add an entry which will allow the user to input their course in case their current course is not listed in courses
 course_menu_other_var = tk.StringVar()
@@ -556,7 +574,7 @@ course_menu_other_entry.bind('<FocusIn>', lambda event, textvariable=course_menu
 course_menu_other_entry.bind('<FocusOut>', lambda event, what_data="course", placeholder="Specify your course", textvariable=course_menu_other_var :
                  entry_focusout_callback(event, what_data, placeholder, textvariable))
 course_menu_other_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-course_menu_other_entry.bind('<Button-3>', popup_menu_callback)
+course_menu_other_entry.bind('<Button-3>', rightclick_optionsmenu_callback)
 
 
 # Update all_widgets after course_menu and course_menu_other_entry are added
@@ -594,7 +612,8 @@ internship_menu = ttk.OptionMenu(internship_frame, internship_var, "Choose inter
 internship_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 internship_menu.pack(side="right", ipady=5, padx=(0,50))
 internship_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-internship_menu.bind('<FocusIn>', menu_scroll_callback)
+internship_menu.bind("<Button-1>", lambda event: event.widget.focus_set())
+
 all_widgets.append(internship_menu)
 
 
@@ -618,7 +637,8 @@ duration_menu = ttk.OptionMenu(duration_frame, duration_var, "Choose internship 
 duration_menu.configure(width=DEFAULT_MENU_WIDTH, style="placeholder.TMenubutton", padding=3)
 duration_menu.pack(side="right", ipady=5, padx=(0,50))
 duration_menu.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-duration_menu.bind('<FocusIn>', menu_scroll_callback)
+duration_menu.bind("<Button-1>", lambda event: event.widget.focus_set())
+
 all_widgets.append(duration_menu)
 
 
@@ -627,27 +647,46 @@ def agree_chkbtn_callback():
     if (agree_chkbtn_var.get()):
         submit_button.configure(state=tk.ACTIVE)
         submit_button.focus_set()
+        agree_chkbtn.event_generate("<FocusOut>")
     else:
         submit_button.configure(state=tk.DISABLED)
-        base_window.focus_set()
+        submit_button.event_generate("<FocusOut>")
+        agree_chkbtn.event_generate("<FocusOut>")
     
 agree_chkbtn_var = tk.IntVar()
 agree_chkbtn = ttk.Checkbutton(base_window, text="   I agree to share my data with %s and am\n   fully aware of the company's terms of service and privacy policy."%(COMPANY_NAME,),
                                variable=agree_chkbtn_var, command=agree_chkbtn_callback, style="chkbtn.TCheckbutton")
 agree_chkbtn.pack(padx=(5,50), pady=10)
+agree_chkbtn.bind("<FocusIn>", lambda event: agree_chkbtn_callback())
+agree_chkbtn.bind("<Enter>", lambda event: event.widget.config(style="chkbtn.TCheckbutton"))
 
 
 # Finally, add the submit button
 def submit_button_callback(event=None):
-    print ("Submitted")
+    field_vars = []
+    for widget in all_widgets:
+        field_vars.append(widget.cget('style'))
+    global course_menu_other_entry_visible
+    if (not course_menu_other_entry_visible):
+        field_vars.remove('placeholder.TEntry')
+    if ('placeholder.TEntry' in field_vars):
+        mbox.showerror(APP_NAME, "Please fill out all the fields. One or more fields have been left out.")
+        return
+    from time import sleep
+    from random import choice
+    sleep(choice(range(1,3)))
+    base_window.destroy()
+    temptk = tk.Tk()
+    temptk.withdraw()
+    mbox.showinfo(APP_NAME, "Your form has successfully been submitted.\n\nThank you for taking interest in %s's internship programme."%COMPANY_NAME)
+    temptk.destroy()
+
 submit_button = ttk.Button(base_window, text="Submit Form", state=tk.DISABLED, command=submit_button_callback)
 submit_button.pack(ipadx=20)
 submit_button.bind("<Return>", submit_button_callback)
 
 
 base_window.unbind_all("<Tab>")
-base_window.unbind_all("<<NextWindow>>")
-base_window.unbind_all("<<PrevWindow>>")
 base_window.bind_all("<Tab>", circulate_thru_widgets)
 base_window.bind_all("<Down>", circulate_thru_widgets)
 base_window.bind_all("<Up>", lambda event, key="Up" : circulate_thru_widgets(event, key))
