@@ -68,7 +68,6 @@ if (dependency_flag_set):
 
 from os import name as OS_NAME
 import win32messagebox as mbox
-#import tkinter.messagebox as mbox
 
 def capitalize_each_word(sentence):
     words = sentence.split()
@@ -222,12 +221,11 @@ def entry_focusin_callback(event, textvariable=None):
         event.widget.delete(0, 'end')
         event.widget.configure(style="text.TEntry")
     else:
-        event.widget.xview_moveto(len(textvariable.get()))
+        event.widget.xview_moveto(1)
         event.widget.icursor(len(textvariable.get()))
 
 
 def entry_focusout_callback(event, what_data="", placeholder="", textvariable=None):
-
     if (textvariable == None):
         for entry_name in common_entries:
             if (common_entries[entry_name]['entry'] == event.widget):
@@ -302,7 +300,7 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
         event.widget.configure(style="placeholder.TEntry")
         event.widget.delete(0, 'end')
         event.widget.focus_set()
-        popup_menu.unpost()
+        #popup_menu.unpost()
         
         
 def close_menuoptions_callback(event):
@@ -375,18 +373,9 @@ for entry in common_entries:
         'textvar': None
         }
 
-
-# Cut, copy, paste are currently buggy
-def cut():
-    widget = fields_area.focus_get()
-    widget.focus_set()
-    base_window.clipboard_clear()
-    selection = widget.selection_get()
-    widget.event_generate("<Control-x>")
-    base_window.clipboard_append(selection)
-
-
 '''
+# Cut, copy, paste are currently buggy
+
 def cut():
     widget = fields_area.focus_get()
     base_window.clipboard_clear()
@@ -405,7 +394,7 @@ def cut():
         pass
     finally:
         base_window.clipboard_append(selection)
-'''
+
 
 def copy():
     widget = fields_area.focus_get()
@@ -461,9 +450,8 @@ popup_menu.add_command(label="Select All", command=select_all)
 
 
 def rightclick_optionsmenu_callback(event, cursor_position):
-    print (cursor_position)
-    print ("popup_menu_visible")
-    base_window.after(100, lambda: event.widget.xview_moveto(cursor_position))
+    global popupmenu_visible
+    
     try:
         event.widget.selection_get()
         popup_menu.entryconfig("Cut", state=tk.ACTIVE)
@@ -478,9 +466,16 @@ def rightclick_optionsmenu_callback(event, cursor_position):
         popup_menu.entryconfig("Paste", state=tk.DISABLED)
     if (fields_area.focus_get() == event.widget):
         popup_menu.tk_popup(event.x_root, event.y_root, 0)
+        popupmenu_visible = True
+        event.widget.icursor(cursor_position)
+        event.widget.event_generate('<Left>')
+        event.widget.event_generate('<Right>')
     
 
-# apple banana cherry date eggplant fig grapefruit honeydew kiwi lemon mango orange pear quince raspberry strawberry tomato
+def toggle_popupmenu_visible(state):
+    global popupmenu_visible
+    popupmenu_visible = state
+'''
 
 # Define a function for adding a common entry
 def add_common_entry(entry_name):
@@ -499,8 +494,9 @@ def add_common_entry(entry_name):
     common_entries[entry_name]['entry'].bind('<FocusOut>', lambda event, what_data=entry_name :
                  entry_focusout_callback(event, what_data=what_data))
     common_entries[entry_name]['entry'].bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-    common_entries[entry_name]['entry'].bind('<Button-3>', lambda event: rightclick_optionsmenu_callback(event, cursor_position=common_entries[entry_name]['entry'].index(tk.INSERT)))
-    #common_entries[entry_name]['entry'].bind('<Button-1>', rightclick_optionsmenu_callback)
+    common_entries[entry_name]['entry'].bind_all('<Control-a>', lambda event: event.widget.select_range(0, len(event.widget.get())))
+    #common_entries[entry_name]['entry'].bind('<Button-3>', lambda event: rightclick_optionsmenu_callback(event, cursor_position=common_entries[entry_name]['entry'].index(tk.INSERT)))
+    #common_entries[entry_name]['entry'].bind('<Button-1>', lambda event: toggle_popupmenu_visible(False))
 
 
 # Add the name, phone number, email id, college name entries
@@ -574,7 +570,8 @@ course_menu_other_entry.bind('<FocusIn>', lambda event, textvariable=course_menu
 course_menu_other_entry.bind('<FocusOut>', lambda event, what_data="course", placeholder="Specify your course", textvariable=course_menu_other_var :
                  entry_focusout_callback(event, what_data, placeholder, textvariable))
 course_menu_other_entry.bind('<Return>', lambda event, key="Return" : circulate_thru_widgets(event, key))
-course_menu_other_entry.bind('<Button-3>', rightclick_optionsmenu_callback)
+course_menu_other_entry.bind('<Control-a>', lambda event: event.widget.select_range(0, len(event.widget.get())))
+#course_menu_other_entry.bind('<Button-3>', rightclick_optionsmenu_callback)
 
 
 # Update all_widgets after course_menu and course_menu_other_entry are added
