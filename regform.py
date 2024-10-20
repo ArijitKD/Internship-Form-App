@@ -35,7 +35,7 @@ SOFTWARE.
 # * If possible, implement the valid data check of name, college name, other course and branch using ChatGPT API
 # * Resolve the bug: entry does not re-gain focus on an error display if the next widget is an optionmenu           [DONE]
 # * Add an undo-redo function to the entries, if possible
-
+# * Add a valid link check of resume link using requests
 
 APP_NAME = "Next24tech Internship Registration Form"
 COMPANY_NAME = "Next24tech Technology & Services"
@@ -65,9 +65,13 @@ if (dependency_flag_set):
         print ("*   Re-run "+APP_NAME+".")
     raise SystemExit(1)
 
-
 from os import name as OS_NAME
-import win32messagebox as mbox
+try:
+    import win32messagebox as mbox
+except ImportError as e:
+    print ("Warning:", e)
+    print ("Info: Falling back to tkinter.messagebox module for messageboxes.", end="\n\n")
+    import tkinter.messagebox as mbox
 
 def capitalize_each_word(sentence):
     words = sentence.split()
@@ -279,11 +283,14 @@ def entry_focusout_callback(event, what_data="", placeholder="", textvariable=No
                 
     elif (what_data == "course"):
         pass
-    
+
+    elif (what_data == "resume link"):
+        pass
+        
     else:
         if (entry_data != ""):
             copy_entry_data = entry_data
-            for char in ('(', ')', '.', ',', ' '):
+            for char in ('(', ')', '.', ',', ' ', '&', "-", "/"):
                 entry_data = entry_data.replace(char, '')
             if (not entry_data.isalpha()):
                 invalid_data = True
